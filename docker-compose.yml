@@ -1,37 +1,55 @@
 services:
     rsshub:
         image: diygod/rsshub
-        restart: unless-stopped
+        restart: always
         ports:
-            - '1200:1200'
+            - "1200:1200"
         environment:
             NODE_ENV: production
             CACHE_TYPE: redis
-            REDIS_URL: 'redis://redis:6379/'
-            PUPPETEER_WS_ENDPOINT: 'ws://browserless:3000'
+            REDIS_URL: "redis://redis:6379/"
+            PUPPETEER_WS_ENDPOINT: "ws://browserless:3000"
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:1200/healthz"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
         depends_on:
             - redis
             - browserless
+            - cloudflared
 
-    nginx:
-        image: nginx:latest
-        expose:
-        - 80
     cloudflared:
         image: cloudflare/cloudflared:latest
+        restart: always
         command: tunnel run
         environment:
         - TUNNEL_TOKEN=$CF_TUNNEL_TOKEN
 
     browserless:
-        image: browserless/chrome:1.43-chrome-stable
-        restart: unless-stopped
+        image: browserless/chrome
+        restart: always
+        ulimits:
+            core:
+                hard: 0
+                soft: 0
+        healthcheck:
+            test: ["CMD", "curl", "-f", "http://localhost:3000/pressure"]
+            interval: 30s
+            timeout: 10s
+            retries: 3
 
     redis:
         image: redis:alpine
-        restart: unless-stopped
+        restart: always
         volumes:
             - redis-data:/data
+        healthcheck:
+            test: ["CMD", "redis-cli", "ping"]
+            interval: 30s
+            timeout: 10s
+            retries: 5
+            start_period: 5s
 
 volumes:
     redis-data:
